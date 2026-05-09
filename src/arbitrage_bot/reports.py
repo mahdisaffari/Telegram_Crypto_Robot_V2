@@ -23,8 +23,7 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
         _sep(),
         f"<b>📊  گزارش قیمت · {coin_e}</b>",
         _sep(),
-        "",
-        f"<i>واحد پول: تومان  ·  نمایش اعداد: انگلیسی (۲ رقم اعشار)</i>",
+        ""
         "",
         f"<b>۱) قیمت در صرافی‌ها</b>",
         "",
@@ -82,7 +81,7 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
         "امکان جابه‌جایی بین صرافی‌ها را جداگانه در نظر بگیرید.</i>"
     )
     parts.append(
-        "<i>اگر جایی «نامشخص» است، API یا سایت آن صرافی موقتاً در دسترس نبوده است.</i>"
+        "<i>اگر جایی «خطا» است، API یا سایت آن صرافی موقتاً در دسترس نبوده است.</i>"
     )
 
     return "\n".join(parts)

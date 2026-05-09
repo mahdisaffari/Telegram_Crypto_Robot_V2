@@ -42,7 +42,7 @@ async def handle_coin_query(message: Message, http_session: aiohttp.ClientSessio
 
     wait = await message.answer(
         "⏳  در حال گرفتن قیمت از صرافی‌ها…\n"
-        "معمولا چند ثانیه طول می‌کشد."
+        "معمولا چند ثانیه زمان میبرد."
     )
     try:
         quotes = await gather_exchange_quotes(http_session, coin, settings.request_timeout_s)
@@ -62,12 +62,12 @@ async def handle_coin_query(message: Message, http_session: aiohttp.ClientSessio
         try:
             await wait.edit_text(
                 "خطای موقت پیش آمد؛ گزارش ساخته نشد.\n"
-                "یک دقیقه بعد دوباره همان نماد را بفرستید."
+                "چند لحظه بعد دوباره تلاش کنید ."
             )
         except Exception:
             await message.answer(
                 "خطای موقت پیش آمد؛ گزارش ساخته نشد.\n"
-                "یک دقیقه بعد دوباره همان نماد را بفرستید."
+                "چند لحظه بعد دوباره تلاش کنید ."
             )
 
 
