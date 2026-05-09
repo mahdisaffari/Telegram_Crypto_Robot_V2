@@ -1,0 +1,13 @@
+# Iranian crypto arbitrage Telegram bot — Docker Compose (recommended for VPS)
+services:
+  arbitrage-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: soheil-arbitrage-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Uncomment if outbound HTTPS needs an HTTP proxy on your network:
+    # environment:
+    #   HTTPS_PROXY: http://proxy.example.com:8080

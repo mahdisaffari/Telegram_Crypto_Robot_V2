@@ -1,0 +1,27 @@
+# systemd unit example — copy to /etc/systemd/system/arbitrage-bot.service
+# and adjust User, WorkingDirectory, and paths.
+#
+#   sudo cp deploy/arbitrage-bot.service.example /etc/systemd/system/arbitrage-bot.service
+#   sudo nano /etc/systemd/system/arbitrage-bot.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now arbitrage-bot
+
+[Unit]
+Description=Soheil Persian crypto arbitrage Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/Soheil_crypto_bot
+EnvironmentFile=/opt/Soheil_crypto_bot/.env
+ExecStart=/opt/Soheil_crypto_bot/.venv/bin/python -u /opt/Soheil_crypto_bot/main.py
+Restart=on-failure
+RestartSec=15
+
+# Hardening (optional; remove if they break your environment)
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

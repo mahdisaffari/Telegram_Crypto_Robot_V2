@@ -44,7 +44,15 @@ def load_settings() -> Settings:
     sticker = os.getenv("STICKER_FILE_ID", "").strip() or os.getenv(
         "REPORT_STICKER_FILE_ID", ""
     ).strip()
+    timeout_s = DEFAULT_REQUEST_TIMEOUT_S
+    raw_to = os.getenv("REQUEST_TIMEOUT_S", "").strip()
+    if raw_to:
+        try:
+            timeout_s = max(5, min(120, int(raw_to)))
+        except ValueError:
+            pass
     return Settings(
         bot_token=token,
         report_sticker_file_id=sticker or None,
+        request_timeout_s=timeout_s,
     )
