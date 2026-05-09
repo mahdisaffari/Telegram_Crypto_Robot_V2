@@ -8,7 +8,8 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
-from arbitrage_bot.config import HTTP_HEADERS, SUPPORTED_COINS, Settings
+from arbitrage_bot.coins import format_coin_title, resolve_exchange_coin, user_coin_supported
+from arbitrage_bot.config import HTTP_HEADERS, Settings
 from arbitrage_bot.exchange_clients import gather_exchange_quotes
 from arbitrage_bot.locale_fa import help_message, unsupported_coin_message
 from arbitrage_bot.middlewares import SessionMiddleware, SettingsMiddleware
@@ -35,18 +36,19 @@ async def handle_coin_query(message: Message, http_session: aiohttp.ClientSessio
         )
         return
 
-    coin = raw.upper().replace(" ", "")
-    if coin not in SUPPORTED_COINS:
+    if not user_coin_supported(raw):
         await message.answer(unsupported_coin_message(raw))
         return
+
+    coin_api = resolve_exchange_coin(raw)
 
     wait = await message.answer(
         "⏳  در حال گرفتن قیمت از صرافی‌ها…\n"
         "معمولا چند ثانیه زمان میبرد."
     )
     try:
-        quotes = await gather_exchange_quotes(http_session, coin, settings.request_timeout_s)
-        report_html = build_price_report_html(coin, quotes)
+        quotes = await gather_exchange_quotes(http_session, coin_api, settings.request_timeout_s)
+        report_html = build_price_report_html(format_coin_title(raw), quotes)
         try:
             await wait.delete()
         except Exception:
@@ -58,7 +60,7 @@ async def handle_coin_query(message: Message, http_session: aiohttp.ClientSessio
                 logger.warning("Could not send sticker: %s", sticker_exc)
         await message.answer(report_html, parse_mode=ParseMode.HTML)
     except Exception:
-        logger.exception("Failed building report for %s", coin)
+        logger.exception("Failed building report for %s", coin_api)
         try:
             await wait.edit_text(
                 "خطای موقت پیش آمد؛ گزارش ساخته نشد.\n"

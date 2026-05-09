@@ -1,6 +1,6 @@
 # Persian Crypto Arbitrage Telegram Bot
 
-An asynchronous Telegram bot (Python) that fetches spot prices for whitelisted coins from several Iranian exchanges, compares them in **Toman**, and reports arbitrage spread and best buy/sell venues. User-facing messages are in **Persian (Farsi)**; displayed prices use **English numerals** with thousand separators and two decimal places.
+An asynchronous Telegram bot (Python) that fetches spot prices for whitelisted coins from several Iranian exchanges, compares them in **Toman**, and reports arbitrage spread and best buy/sell venues. User-facing messages are in **Persian (Farsi)**; each reported price is shown as **plain digits** (0–9 and an optional decimal point) derived from the exchange data via `Decimal` (no `float` conversion for display, no thousands separators).
 
 > **Note:** This project was created with the help of **AI-assisted development tools** (e.g. coding assistants). Review security-sensitive parts (tokens, deployment, and exchange integrations) before production use.
 
@@ -8,10 +8,19 @@ An asynchronous Telegram bot (Python) that fetches spot prices for whitelisted c
 
 ## Features
 
-- **Coins:** `USDT`, `USDC`, `DAI`, `BTC`, `ETH`, `TRX`
-- **Exchanges (API + optional HTML fallback):** Nobitex, Bitpin, Ramzinex, Exir, Wallex, Sarrafex (SarrafEx)
+- **Coins:** `USDT`, `USDC`, `DAI`, `BTC`, `ETH`, `TRX`, `XRP`, `XLM`, `LTC`, `SOL`, `MATIC`, plus `USDC-TRC20` / `USDC-BEP20` style aliases (all resolve to the same `USDC` IRT book where the exchange has a single market)
+- **Exchanges (API + optional HTML fallback):** Nobitex, Bitpin, Ramzinex, Exir, Wallex, Sarrafex (SarrafEx), Tabdeal (تبدیل), Aban Tether (آبان‌تتر)
 - **Stack:** [aiogram](https://docs.aiogram.dev/) v3.x, [aiohttp](https://docs.aiohttp.org/), `asyncio.gather()` for concurrent requests
 - **Resilience:** isolated `try/except` per exchange; partial failures do not stop the bot
+
+### Exchange APIs used for prices (reference)
+
+| Venue | How spot price is read |
+|-------|-------------------------|
+| **Tabdeal** (تبدیل) | Public order book: `GET https://api1.tabdeal.org/r/api/v1/depth?symbol={COIN}IRT` — [docs.tabdeal.org](https://docs.tabdeal.org) |
+| **Aban Tether** (آبان‌تتر) | Public OTC ticker: `GET https://api.abantether.com/api/v1/manager/otc/ticker` — [docs.abantether.com](https://docs.abantether.com) |
+| **OK Exchange** (اوکی‌اکسچنج) | Official REST/WebSocket documentation: [docs.ok-ex.io](https://docs.ok-ex.io). A stable **anonymous** REST host/path was not verified from here; integrate using the hostname and paths from your OK Exchange developer/API settings when available. |
+| **Iranicard** (ایرانیکارت) | No public developer ticker/API for IRT spot was found in open documentation; the site focuses on USD/global reference prices. |
 
 ---
 

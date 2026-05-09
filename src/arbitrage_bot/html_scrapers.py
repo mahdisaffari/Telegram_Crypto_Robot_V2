@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from decimal import Decimal
 
 import aiohttp
 
@@ -33,11 +34,11 @@ async def _get_text(
         return None
 
 
-def _mid(a: float, b: float) -> float:
-    return (a + b) / 2.0
+def _mid(a: Decimal, b: Decimal) -> Decimal:
+    return (a + b) / Decimal(2)
 
 
-def _nobitex_chunk(html: str, coin: str) -> float | None:
+def _nobitex_chunk(html: str, coin: str) -> Decimal | None:
     needle = f'"{coin.upper()}IRT"'
     pos = 0
     while True:
@@ -47,17 +48,17 @@ def _nobitex_chunk(html: str, coin: str) -> float | None:
         window = html[i : i + 15000]
         m = re.search(r'"lastTradePrice"\s*:\s*"(\d+)"', window)
         if m:
-            return float(m.group(1)) / 10.0
+            return Decimal(m.group(1)) / Decimal(10)
         mb = re.search(r'"bids"\s*:\s*\[\s*\[\s*"(\d+)"', window)
         ma = re.search(r'"asks"\s*:\s*\[\s*\[\s*"(\d+)"', window)
         if mb and ma:
-            return _mid(float(mb.group(1)), float(ma.group(1))) / 10.0
+            return _mid(Decimal(mb.group(1)), Decimal(ma.group(1))) / Decimal(10)
         pos = i + len(needle)
 
 
 async def scrape_nobitex_toman(
     session: aiohttp.ClientSession, coin: str, timeout_s: int
-) -> float | None:
+) -> Decimal | None:
     for url in (
         "https://nobitex.ir/",
         f"https://nobitex.ir/markets/{coin.lower()}-irt",
@@ -72,7 +73,7 @@ async def scrape_nobitex_toman(
     return None
 
 
-def _bitpin_in_html(html: str, coin: str) -> float | None:
+def _bitpin_in_html(html: str, coin: str) -> Decimal | None:
     sym = f"{coin.upper()}_IRT"
     for pat in (
         rf'"symbol"\s*:\s*"{re.escape(sym)}"[^}}]{{0,4000}}?"price"\s*:\s*"([\d.]+)"',
@@ -81,15 +82,15 @@ def _bitpin_in_html(html: str, coin: str) -> float | None:
         m = re.search(pat, html, re.I | re.DOTALL)
         if m:
             try:
-                return float(m.group(1)) / 10.0
-            except ValueError:
+                return Decimal(m.group(1)) / Decimal(10)
+            except Exception:
                 pass
     return None
 
 
 async def scrape_bitpin_toman(
     session: aiohttp.ClientSession, coin: str, timeout_s: int
-) -> float | None:
+) -> Decimal | None:
     for url in (
         "https://bitpin.ir/",
         "https://bitpin.ir/markets",
@@ -104,7 +105,7 @@ async def scrape_bitpin_toman(
     return None
 
 
-def _ramzinex_in_html(html: str, coin: str) -> float | None:
+def _ramzinex_in_html(html: str, coin: str) -> Decimal | None:
     slug = f"{coin.lower()}irr"
     i = html.lower().find(slug)
     if i >= 0:
@@ -113,8 +114,8 @@ def _ramzinex_in_html(html: str, coin: str) -> float | None:
         ms = re.search(r'"sell"\s*:\s*([\d.]+)', window)
         if mb and ms:
             try:
-                return _mid(float(mb.group(1)), float(ms.group(1))) / 10.0
-            except ValueError:
+                return _mid(Decimal(mb.group(1)), Decimal(ms.group(1))) / Decimal(10)
+            except Exception:
                 pass
     for pat in (
         rf'"{re.escape(coin.lower())}irr"[^\[]{{0,2000}}\[[^\]]*\][^\[]*\[[^\]]*"buy"\s*:\s*([\d.]+)',
@@ -122,15 +123,15 @@ def _ramzinex_in_html(html: str, coin: str) -> float | None:
         m = re.search(pat, html, re.I | re.DOTALL)
         if m:
             try:
-                return float(m.group(1)) / 10.0
-            except ValueError:
+                return Decimal(m.group(1)) / Decimal(10)
+            except Exception:
                 pass
     return None
 
 
 async def scrape_ramzinex_toman(
     session: aiohttp.ClientSession, coin: str, timeout_s: int
-) -> float | None:
+) -> Decimal | None:
     for url in (
         "https://ramzinex.com/exchange/pt/markets",
         "https://ramzinex.com/exchange/pt",
@@ -145,7 +146,7 @@ async def scrape_ramzinex_toman(
     return None
 
 
-def _exir_in_html(html: str, coin: str) -> float | None:
+def _exir_in_html(html: str, coin: str) -> Decimal | None:
     sym = f"{coin.lower()}-irt"
     i = html.find(sym)
     if i >= 0:
@@ -153,22 +154,22 @@ def _exir_in_html(html: str, coin: str) -> float | None:
         m = re.search(r'"last"\s*:\s*([\d.]+)', window)
         if m:
             try:
-                return float(m.group(1)) / 10.0
-            except ValueError:
+                return Decimal(m.group(1)) / Decimal(10)
+            except Exception:
                 pass
         mb = re.search(r'"bid"\s*:\s*([\d.]+)', window)
         ma = re.search(r'"ask"\s*:\s*([\d.]+)', window)
         if mb and ma:
             try:
-                return _mid(float(mb.group(1)), float(ma.group(1))) / 10.0
-            except ValueError:
+                return _mid(Decimal(mb.group(1)), Decimal(ma.group(1))) / Decimal(10)
+            except Exception:
                 pass
     return None
 
 
 async def scrape_exir_toman(
     session: aiohttp.ClientSession, coin: str, timeout_s: int
-) -> float | None:
+) -> Decimal | None:
     for url in (
         f"https://exir.io/trade/{coin.lower()}-irt",
         "https://exir.io/",
@@ -183,7 +184,7 @@ async def scrape_exir_toman(
     return None
 
 
-def _wallex_in_html(html: str, coin: str) -> float | None:
+def _wallex_in_html(html: str, coin: str) -> Decimal | None:
     sym = f"{coin.upper()}TMN"
     needle = f'"{sym}"'
     pos = 0
@@ -195,15 +196,15 @@ def _wallex_in_html(html: str, coin: str) -> float | None:
         m = re.search(r'"lastPrice"\s*:\s*"([\d.]+)"', window)
         if m:
             try:
-                return float(m.group(1))
-            except ValueError:
+                return Decimal(m.group(1))
+            except Exception:
                 pass
         mb = re.search(r'"bidPrice"\s*:\s*"([\d.]+)"', window)
         ma = re.search(r'"askPrice"\s*:\s*"([\d.]+)"', window)
         if mb and ma:
             try:
-                return _mid(float(mb.group(1)), float(ma.group(1)))
-            except ValueError:
+                return _mid(Decimal(mb.group(1)), Decimal(ma.group(1)))
+            except Exception:
                 pass
         pos = i + len(needle)
     return None
@@ -211,7 +212,7 @@ def _wallex_in_html(html: str, coin: str) -> float | None:
 
 async def scrape_wallex_toman(
     session: aiohttp.ClientSession, coin: str, timeout_s: int
-) -> float | None:
+) -> Decimal | None:
     for url in (
         f"https://wallex.ir/coin/{coin.upper()}",
         "https://wallex.ir/markets",
@@ -226,7 +227,7 @@ async def scrape_wallex_toman(
     return None
 
 
-def _sarrafex_in_html(html: str, coin: str) -> float | None:
+def _sarrafex_in_html(html: str, coin: str) -> Decimal | None:
     c = coin.upper()
     for pat in (
         rf'"counterAssetId"\s*:\s*"{re.escape(c)}"[^}}]{{0,4000}}?"latestRate"\s*:\s*([\d.]+)',
@@ -235,8 +236,8 @@ def _sarrafex_in_html(html: str, coin: str) -> float | None:
         m = re.search(pat, html, re.I | re.DOTALL)
         if m:
             try:
-                return float(m.group(1))
-            except ValueError:
+                return Decimal(m.group(1))
+            except Exception:
                 pass
     i = html.find(f'"counterAssetId":"{c}"')
     if i >= 0:
@@ -244,15 +245,15 @@ def _sarrafex_in_html(html: str, coin: str) -> float | None:
         m = re.search(r'"latestRate"\s*:\s*([\d.]+)', window)
         if m:
             try:
-                return float(m.group(1))
-            except ValueError:
+                return Decimal(m.group(1))
+            except Exception:
                 pass
     return None
 
 
 async def scrape_sarrafex_toman(
     session: aiohttp.ClientSession, coin: str, timeout_s: int
-) -> float | None:
+) -> Decimal | None:
     for url in (
         "https://sarrafex.com/",
         "https://sarrafex.com/markets",

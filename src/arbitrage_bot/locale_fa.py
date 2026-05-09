@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from arbitrage_bot.config import SUPPORTED_COINS
+from arbitrage_bot.coins import SUPPORTED_COINS
 
 FA_DIGITS = str.maketrans("0123456789,.-", "۰۱۲۳۴۵۶۷۸۹،٫-")
 
@@ -11,6 +11,8 @@ EXCHANGE_LABELS_FA: dict[str, str] = {
     "exir": "اکسیر",
     "wallex": "والکس",
     "sarrafex": "صرافکس",
+    "tabdeal": "تبدیل",
+    "abantether": "آبان‌تتر",
 }
 
 
@@ -39,7 +41,7 @@ def help_message() -> str:
         " سلام و درود \n\n"
         "این ربات قیمت چند صرافی را با هم مقایسه می‌کند و اختلاف را به تومان نشان می‌دهد.\n\n"
         "چطور استفاده کنم؟\n"
-        "۱) نماد ارز را به انگلیسی بفرستید (بدون فاصله اضافه)\n"
+        "۱) نماد ارز را به انگلیسی بفرستید (مثلاً USDC-TRC20 یا SOL)\n"
         "۲) گزارش شامل قیمت هر صرافی، شکاف آربیتراژ و بهترین خرید/فروش است.\n\n"
         f"ارزهای فعلی: {coins_line}\n\n"
         "مثال:\n"

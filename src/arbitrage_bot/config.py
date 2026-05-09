@@ -13,8 +13,7 @@ load_dotenv(_project_root / ".env")
 load_dotenv(_pkg_dir / ".env")
 load_dotenv()
 
-
-SUPPORTED_COINS: frozenset[str] = frozenset({"USDT", "USDC", "DAI", "BTC", "ETH", "TRX"})
+from arbitrage_bot.coins import SUPPORTED_COINS  # noqa: E402 — پس از load_dotenv
 
 DEFAULT_REQUEST_TIMEOUT_S: int = 14
 

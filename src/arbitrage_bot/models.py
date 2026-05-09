@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 @dataclass(slots=True)
 class ExchangeQuote:
-    """Normalized quote for one venue (price always in تومان when present)."""
+    """قیمت نرمال‌شده به تومان برای مقایسه؛ مقدار Decimal بدون تبدیل به float."""
 
     exchange_key: str
     label_fa: str
-    price_toman: float | None
+    price_toman: Decimal | None
