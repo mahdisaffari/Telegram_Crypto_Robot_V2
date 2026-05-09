@@ -122,8 +122,4 @@ Soheil_crypto_bot/
 - Rotate tokens if they are exposed.
 - Prefer a non-root user in systemd and minimal container privileges.
 
----
 
-## License
-
-Specify your license here if applicable.
