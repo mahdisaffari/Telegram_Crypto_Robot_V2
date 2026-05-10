@@ -63,12 +63,12 @@ async def handle_coin_query(message: Message, http_session: aiohttp.ClientSessio
         logger.exception("Failed building report for %s", coin_api)
         try:
             await wait.edit_text(
-                "خطای موقت پیش آمد؛ گزارش ساخته نشد.\n"
+                "** 500 Error **.\n"
                 "چند لحظه بعد دوباره تلاش کنید ."
             )
         except Exception:
             await message.answer(
-                "خطای موقت پیش آمد؛ گزارش ساخته نشد.\n"
+                "** 500 Error **\n"
                 "چند لحظه بعد دوباره تلاش کنید ."
             )
 

@@ -10,7 +10,7 @@ from arbitrage_bot.models import ExchangeQuote
 
 
 def _sep() -> str:
-    return escape("────────────────────────")
+    return escape("──────────────────────────")
 
 
 def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
@@ -26,7 +26,7 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
         _sep(),
         ""
         "",
-        f"<b>۱) قیمت در صرافی‌ها</b>",
+        f"<b>1) قیمت در صرافی‌ها</b>",
         "",
     ]
 
@@ -47,7 +47,7 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
     valid = [q for q in ordered if q.price_toman is not None]
     parts.append("")
     parts.append(_sep())
-    parts.append(f"<b>۲) آربیتراژ و بهترین صرافی</b>")
+    parts.append(f"<b>2) آربیتراژ و بهترین صرافی</b>")
     parts.append("")
 
     if len(valid) < 2:
@@ -60,22 +60,22 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
         buy_q = min(valid, key=lambda x: x.price_toman if x.price_toman is not None else Decimal("Infinity"))
         sell_q = max(valid, key=lambda x: x.price_toman if x.price_toman is not None else Decimal("-Infinity"))
 
-        parts.append("شکاف قیمت (گران‌ترین منهای ارزان‌ترین):")
-        parts.append(f"   <code>{escape(format_price_digits_exact(gap))}</code> تومان")
-        parts.append("")
-        parts.append("ارزان‌ترین (مناسب‌تر برای <b>خرید</b>):")
+#        parts.append("شکاف قیمت (گران‌ترین منهای ارزان‌ترین):")
+#        parts.append(f"   <code>{escape(format_price_digits_exact(gap))}</code> تومان")
+ #       parts.append("")
+        parts.append("ارزان‌ترین (مناسب‌تر برای <b>خرید</b>) :")
         parts.append(
             f"   {escape(buy_q.label_fa)}  ←  <code>{escape(format_price_digits_exact(buy_q.price_toman))}</code>"
         )
         parts.append("")
-        parts.append("گران‌ترین (مناسب‌تر برای <b>فروش</b>):")
+        parts.append("گران‌ترین (مناسب‌تر برای <b>فروش</b>) :")
         parts.append(
             f"   {escape(sell_q.label_fa)}  ←  <code>{escape(format_price_digits_exact(sell_q.price_toman))}</code>"
         )
 
     parts.append("")
     parts.append(_sep())
-    parts.append(f"<b>۳) یادآوری</b>")
+    parts.append(f"<b>3) * یادآوری *</b>")
     parts.append("")
     parts.append(
         "<i>این اعداد فقط برای مقایسهٔ سریع هستند؛ کارمزد، اسپرد و "
