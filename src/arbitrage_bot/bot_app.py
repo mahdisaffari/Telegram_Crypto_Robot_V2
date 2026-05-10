@@ -64,12 +64,12 @@ async def handle_coin_query(message: Message, http_session: aiohttp.ClientSessio
         try:
             await wait.edit_text(
                 "** 500 Error **.\n"
-                "چند لحظه بعد دوباره تلاش کنید ."
+                "Pleas trying again after 20 secound."
             )
         except Exception:
             await message.answer(
                 "** 500 Error **\n"
-                "چند لحظه بعد دوباره تلاش کنید ."
+                "Pleas trying again after 20 secound."
             )
 
 

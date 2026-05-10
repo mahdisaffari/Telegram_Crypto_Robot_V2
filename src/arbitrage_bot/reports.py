@@ -46,9 +46,9 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
 
     valid = [q for q in ordered if q.price_toman is not None]
     parts.append("")
-    parts.append(_sep())
-    parts.append(f"<b>2) آربیتراژ و بهترین صرافی</b>")
-    parts.append("")
+#    parts.append(_sep())
+#    parts.append(f"<b>2) آربیتراژ و بهترین صرافی</b>")
+#    parts.append("")
 
     if len(valid) < 2:
         parts.append(
@@ -62,20 +62,20 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
 
 #        parts.append("شکاف قیمت (گران‌ترین منهای ارزان‌ترین):")
 #        parts.append(f"   <code>{escape(format_price_digits_exact(gap))}</code> تومان")
- #       parts.append("")
-        parts.append("ارزان‌ترین (مناسب‌تر برای <b>خرید</b>) :")
-        parts.append(
-            f"   {escape(buy_q.label_fa)}  ←  <code>{escape(format_price_digits_exact(buy_q.price_toman))}</code>"
-        )
-        parts.append("")
-        parts.append("گران‌ترین (مناسب‌تر برای <b>فروش</b>) :")
-        parts.append(
-            f"   {escape(sell_q.label_fa)}  ←  <code>{escape(format_price_digits_exact(sell_q.price_toman))}</code>"
-        )
+#        parts.append("")
+#        parts.append("ارزان‌ترین (مناسب‌تر برای <b>خرید</b>) :")
+#        parts.append(
+#            f"   {escape(buy_q.label_fa)}  ←  <code>{escape(format_price_digits_exact(buy_q.price_toman))}</code>"
+#        )
+#        parts.append("")
+#        parts.append("گران‌ترین (مناسب‌تر برای <b>فروش</b>) :")
+#        parts.append(
+#            f"   {escape(sell_q.label_fa)}  ←  <code>{escape(format_price_digits_exact(sell_q.price_toman))}</code>"
+#        )
 
     parts.append("")
     parts.append(_sep())
-    parts.append(f"<b>3) * یادآوری *</b>")
+    parts.append(f"<b>2) * یادآوری *</b>")
     parts.append("")
     parts.append(
         "<i>این اعداد فقط برای مقایسهٔ سریع هستند؛ کارمزد، اسپرد و "
