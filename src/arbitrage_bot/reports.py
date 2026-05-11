@@ -17,7 +17,7 @@ def _to_fa_digits(s: str) -> str:
 
 
 def _sep() -> str:
-    return escape("━━━━━━━━━━━━━━━━━━━━━━")
+    return escape("━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 
 def _quote_time_tehran_label(quoted_at_utc: datetime | None) -> str:
@@ -54,11 +54,11 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
     parts: list[str] = [
         _sep(),
         f"<b>📈 گزارش لحظه‌ای · {coin_e}</b>",
-        f"📅 <b>امروز</b> <i>(تقویم شمسی، وقت تهران)</i>\n<code>{date_line}</code>",
+        f"📅 <b>امروز</b>\n<code>{date_line}</code>",
         _sep(),
         "",
         "<b>۱ · قیمت صرافی‌ها</b>",
-        "<i>خرید = مبلغی که می‌پردازید  ·  فروش = مبلغی که دریافت می‌کنید</i>",
+        "<i>خرید= مبلغی که می‌پردازید | فروش= مبلغی که دریافت می‌کنید</i>",
         "",
     ]
 
@@ -75,7 +75,7 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
                 _line_price("💵", "فروش (هر واحد ارز)", q.sell_toman)
             )
             parts.append(
-                "   🕐 <b>زمان گرفتن قیمت</b> <i>(تهران)</i>\n"
+                "   🕐 <b>زمان گرفتن قیمت</b>\n"
                 f"      <code>{_quote_time_tehran_label(q.quoted_at_utc)}</code>"
             )
         parts.append("")
