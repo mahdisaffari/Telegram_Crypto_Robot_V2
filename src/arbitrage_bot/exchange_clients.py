@@ -8,14 +8,6 @@ from typing import Any
 import aiohttp
 
 from arbitrage_bot.config import HTTP_HEADERS
-from arbitrage_bot.html_scrapers import (
-    scrape_bitpin_toman,
-    scrape_exir_toman,
-    scrape_nobitex_toman,
-    scrape_ramzinex_toman,
-    scrape_sarrafex_toman,
-    scrape_wallex_toman,
-)
 from arbitrage_bot.locale_fa import EXCHANGE_LABELS_FA
 from arbitrage_bot.models import ExchangeQuote
 
@@ -77,11 +69,6 @@ async def fetch_nobitex(session: aiohttp.ClientSession, coin: str, timeout_s: in
                 price_toman = price_irr / Decimal(10)
     except Exception as exc:  # noqa: BLE001 — ایزوله برای هر صرافی
         logger.debug("Nobitex API failure: %s", exc)
-    if price_toman is None:
-        try:
-            price_toman = await scrape_nobitex_toman(session, coin, timeout_s)
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Nobitex HTML scrape failure: %s", exc)
     return ExchangeQuote("nobitex", label, price_toman)
 
 
@@ -118,11 +105,6 @@ async def fetch_bitpin(session: aiohttp.ClientSession, coin: str, timeout_s: int
                 price_toman = _d(raw_price) / Decimal(10)
     except Exception as exc:  # noqa: BLE001
         logger.debug("Bitpin API failure: %s", exc)
-    if price_toman is None:
-        try:
-            price_toman = await scrape_bitpin_toman(session, coin, timeout_s)
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Bitpin HTML scrape failure: %s", exc)
     return ExchangeQuote("bitpin", label, price_toman)
 
 
@@ -204,12 +186,6 @@ async def fetch_ramzinex(session: aiohttp.ClientSession, coin: str, timeout_s: i
             continue
     if last_err:
         logger.debug("Ramzinex all API endpoints failed: %s", last_err)
-    try:
-        scraped = await scrape_ramzinex_toman(session, coin, timeout_s)
-        if scraped is not None:
-            return ExchangeQuote("ramzinex", label, scraped)
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("Ramzinex HTML scrape failure: %s", exc)
     return ExchangeQuote("ramzinex", label, None)
 
 
@@ -298,11 +274,6 @@ async def fetch_exir(session: aiohttp.ClientSession, coin: str, timeout_s: int) 
                     price_toman = price_irr / Decimal(10)
     except Exception as exc:  # noqa: BLE001
         logger.debug("Exir API failure: %s", exc)
-    if price_toman is None:
-        try:
-            price_toman = await scrape_exir_toman(session, coin, timeout_s)
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Exir HTML scrape failure: %s", exc)
     return ExchangeQuote("exir", label, price_toman)
 
 
@@ -339,11 +310,6 @@ async def fetch_wallex(session: aiohttp.ClientSession, coin: str, timeout_s: int
         if price is None:
             price = await _wallex_depth_mid(session, coin, timeout_s)
         if price is None:
-            try:
-                price = await scrape_wallex_toman(session, coin, timeout_s)
-            except Exception as se:  # noqa: BLE001
-                logger.debug("Wallex HTML scrape (after API): %s", se)
-        if price is None:
             return ExchangeQuote("wallex", label, None)
         # نمادهای TMN از قبل به تومان هستند.
         return ExchangeQuote("wallex", label, price)
@@ -352,12 +318,6 @@ async def fetch_wallex(session: aiohttp.ClientSession, coin: str, timeout_s: int
         depth_price = await _wallex_depth_mid(session, coin, timeout_s)
         if depth_price is not None:
             return ExchangeQuote("wallex", label, depth_price)
-        try:
-            scraped = await scrape_wallex_toman(session, coin, timeout_s)
-            if scraped is not None:
-                return ExchangeQuote("wallex", label, scraped)
-        except Exception as se:  # noqa: BLE001
-            logger.debug("Wallex HTML scrape failure: %s", se)
         return ExchangeQuote("wallex", label, None)
 
 
@@ -449,11 +409,6 @@ async def fetch_sarrafex(session: aiohttp.ClientSession, coin: str, timeout_s: i
                     price_toman = _d(rate)
     except Exception as exc:  # noqa: BLE001
         logger.debug("Sarrafex API failure: %s", exc)
-    if price_toman is None:
-        try:
-            price_toman = await scrape_sarrafex_toman(session, coin, timeout_s)
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Sarrafex HTML scrape failure: %s", exc)
     return ExchangeQuote("sarrafex", label, price_toman)
 
 

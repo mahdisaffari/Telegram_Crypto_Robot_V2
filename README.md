@@ -9,7 +9,7 @@ An asynchronous Telegram bot (Python) that fetches spot prices for whitelisted c
 ## Features
 
 - **Coins:** `USDT`, `USDC`, `DAI`, `BTC`, `ETH`, `TRX`, `XRP`, `XLM`, `LTC`, `SOL`, `MATIC`, plus `USDC-TRC20` / `USDC-BEP20` style aliases (all resolve to the same `USDC` IRT book where the exchange has a single market)
-- **Exchanges (API + optional HTML fallback):** Nobitex, Bitpin, Ramzinex, Exir, Wallex, Sarrafex (SarrafEx), Tabdeal (تبدیل), Aban Tether (آبان‌تتر)
+- **Exchanges (public APIs only):** Nobitex, Bitpin, Ramzinex, Exir, Wallex, Sarrafex (SarrafEx), Tabdeal (تبدیل), Aban Tether (آبان‌تتر)
 - **Stack:** [aiogram](https://docs.aiogram.dev/) v3.x, [aiohttp](https://docs.aiohttp.org/), `asyncio.gather()` for concurrent requests
 - **Resilience:** isolated `try/except` per exchange; partial failures do not stop the bot
 
