@@ -12,6 +12,11 @@ from arbitrage_bot.coins import format_coin_title, resolve_exchange_coin, user_c
 from arbitrage_bot.config import HTTP_HEADERS, Settings
 from arbitrage_bot.exchange_clients import gather_exchange_quotes
 from arbitrage_bot.locale_fa import help_message, unsupported_coin_message
+from arbitrage_bot.price_rate_limit import (
+    cooldown_seconds_display,
+    quote_cooldown_remaining_s,
+    record_quote_request,
+)
 from arbitrage_bot.middlewares import SessionMiddleware, SettingsMiddleware
 from arbitrage_bot.reports import build_price_report_html
 
@@ -42,6 +47,18 @@ async def handle_coin_query(message: Message, http_session: aiohttp.ClientSessio
 
     coin_api = resolve_exchange_coin(raw)
 
+    uid = message.from_user.id if message.from_user else 0
+    cooldown_left = await quote_cooldown_remaining_s(uid, coin_api)
+    if cooldown_left is not None:
+        wait_s = cooldown_seconds_display(cooldown_left)
+        await message.answer(
+            "⏱  برای هر ارز، حداکثر <b>یک بار در هر دقیقه</b> می‌توانید قیمت بگیرید.\n\n"
+            f"لطفاً حدود <b>{wait_s}</b> ثانیه دیگر دوباره تلاش کنید.\n\n"
+            "راهنما: /help",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
     wait = await message.answer(
         "⏳  در حال گرفتن قیمت از صرافی‌ها…\n"
         "معمولا چند ثانیه زمان میبرد."
@@ -59,6 +76,7 @@ async def handle_coin_query(message: Message, http_session: aiohttp.ClientSessio
             except Exception as sticker_exc:
                 logger.warning("Could not send sticker: %s", sticker_exc)
         await message.answer(report_html, parse_mode=ParseMode.HTML)
+        await record_quote_request(uid, coin_api)
     except Exception:
         logger.exception("Failed building report for %s", coin_api)
         try:

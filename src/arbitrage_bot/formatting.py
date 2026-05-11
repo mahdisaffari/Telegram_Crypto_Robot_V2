@@ -15,3 +15,14 @@ def format_price_digits_exact(value: Decimal | None) -> str:
     if "." in s:
         s = s.rstrip("0").rstrip(".")
     return "".join(c for c in s if c.isdigit() or c == ".")
+
+
+def format_price_digits_rounded(value: Decimal | None) -> str:
+    """
+    نمایش قیمت برای کاربر: با round() اعشار حذف می‌شود (بدون تبدیل به float).
+    """
+    if value is None:
+        return ""
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
+    return str(round(value))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -12,6 +13,10 @@ from arbitrage_bot.locale_fa import EXCHANGE_LABELS_FA
 from arbitrage_bot.models import ExchangeQuote
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _d(x: Any) -> Decimal:
@@ -30,21 +35,44 @@ def _irt_pair_mid_to_toman(raw_mid: Decimal) -> Decimal:
     return raw_mid
 
 
-def _depth_best_mid(book: dict[str, Any]) -> Decimal | None:
+def _irt_leg_to_toman(raw: Decimal) -> Decimal:
+    return _irt_pair_mid_to_toman(raw)
+
+
+def _depth_best_bid_ask(book: dict[str, Any]) -> tuple[Decimal | None, Decimal | None]:
     bids = book.get("bids") or []
     asks = book.get("asks") or []
     if not bids or not asks:
-        return None
+        return None, None
     b0, a0 = bids[0], asks[0]
     bid_p = _d(b0[0]) if isinstance(b0, (list, tuple)) else _d(b0)
     ask_p = _d(a0[0]) if isinstance(a0, (list, tuple)) else _d(a0)
+    return bid_p, ask_p
+
+
+def _depth_best_mid(book: dict[str, Any]) -> Decimal | None:
+    bid_p, ask_p = _depth_best_bid_ask(book)
+    if bid_p is None or ask_p is None:
+        return None
     return _mid_d(bid_p, ask_p)
+
+
+def _quote(
+    exchange_key: str,
+    label: str,
+    buy_toman: Decimal | None,
+    sell_toman: Decimal | None,
+    quoted_at: datetime | None,
+) -> ExchangeQuote:
+    return ExchangeQuote(exchange_key, label, buy_toman, sell_toman, quoted_at)
 
 
 async def fetch_nobitex(session: aiohttp.ClientSession, coin: str, timeout_s: int) -> ExchangeQuote:
     label = EXCHANGE_LABELS_FA["nobitex"]
     url = f"https://apiv2.nobitex.ir/v3/orderbook/{coin}IRT"
-    price_toman: Decimal | None = None
+    buy_toman: Decimal | None = None
+    sell_toman: Decimal | None = None
+    quoted_at: datetime | None = None
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout_s)) as resp:
             resp.raise_for_status()
@@ -60,23 +88,51 @@ async def fetch_nobitex(session: aiohttp.ClientSession, coin: str, timeout_s: in
             asks = ob.get("asks") or []
             bids = ob.get("bids") or []
             last_tp = ob.get("lastTradePrice")
-            price_irr: Decimal | None = None
             if asks and bids:
-                price_irr = _mid_d(_d(bids[0][0]), _d(asks[0][0]))
-            if last_tp is not None and price_irr is None:
-                price_irr = _d(last_tp)
-            if price_irr is not None:
-                price_toman = price_irr / Decimal(10)
+                quoted_at = _utc_now()
+                ask_irr = _d(asks[0][0])
+                bid_irr = _d(bids[0][0])
+                buy_toman = ask_irr / Decimal(10)
+                sell_toman = bid_irr / Decimal(10)
+            elif last_tp is not None:
+                quoted_at = _utc_now()
+                last = _d(last_tp) / Decimal(10)
+                buy_toman = last
+                sell_toman = last
     except Exception as exc:  # noqa: BLE001 — ایزوله برای هر صرافی
         logger.debug("Nobitex API failure: %s", exc)
-    return ExchangeQuote("nobitex", label, price_toman)
+    return _quote("nobitex", label, buy_toman, sell_toman, quoted_at)
+
+
+def _bitpin_row_bid_ask(chosen: dict[str, Any]) -> tuple[Decimal | None, Decimal | None]:
+    def to_toman_pair(bid_raw: Any, ask_raw: Any) -> tuple[Decimal | None, Decimal | None]:
+        if bid_raw is None or ask_raw is None:
+            return None, None
+        try:
+            return _d(bid_raw) / Decimal(10), _d(ask_raw) / Decimal(10)
+        except Exception:
+            return None, None
+
+    for bk, ak in (
+        ("bid", "ask"),
+        ("best_bid", "best_ask"),
+        ("bestBid", "bestAsk"),
+        ("highest_bid", "lowest_ask"),
+    ):
+        if chosen.get(bk) is not None and chosen.get(ak) is not None:
+            return to_toman_pair(chosen.get(bk), chosen.get(ak))
+    if chosen.get("buy") is not None and chosen.get("sell") is not None:
+        return to_toman_pair(chosen.get("buy"), chosen.get("sell"))
+    return None, None
 
 
 async def fetch_bitpin(session: aiohttp.ClientSession, coin: str, timeout_s: int) -> ExchangeQuote:
     label = EXCHANGE_LABELS_FA["bitpin"]
     url = "https://api.bitpin.market/api/v1/mkt/tickers/"
     target = f"{coin}_IRT"
-    price_toman: Decimal | None = None
+    buy_toman: Decimal | None = None
+    sell_toman: Decimal | None = None
+    quoted_at: datetime | None = None
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout_s)) as resp:
             resp.raise_for_status()
@@ -95,17 +151,26 @@ async def fetch_bitpin(session: aiohttp.ClientSession, coin: str, timeout_s: int
                 chosen = row
                 break
         if isinstance(chosen, dict):
-            raw_price = (
-                chosen.get("price")
-                or chosen.get("last_price")
-                or chosen.get("lastPrice")
-                or chosen.get("latest")
-            )
-            if raw_price is not None:
-                price_toman = _d(raw_price) / Decimal(10)
+            bid_t, ask_t = _bitpin_row_bid_ask(chosen)
+            if bid_t is not None and ask_t is not None:
+                quoted_at = _utc_now()
+                sell_toman = bid_t
+                buy_toman = ask_t
+            else:
+                raw_price = (
+                    chosen.get("price")
+                    or chosen.get("last_price")
+                    or chosen.get("lastPrice")
+                    or chosen.get("latest")
+                )
+                if raw_price is not None:
+                    quoted_at = _utc_now()
+                    mid = _d(raw_price) / Decimal(10)
+                    buy_toman = mid
+                    sell_toman = mid
     except Exception as exc:  # noqa: BLE001
         logger.debug("Bitpin API failure: %s", exc)
-    return ExchangeQuote("bitpin", label, price_toman)
+    return _quote("bitpin", label, buy_toman, sell_toman, quoted_at)
 
 
 def _ramzinex_currency_en(raw: Any) -> str:
@@ -125,7 +190,6 @@ def _ramzinex_pair_matches(coin: str, m: dict[str, Any]) -> bool:
     quote = _ramzinex_currency_en(m.get("quote_currency_symbol"))
     if base == c and quote in ("IRR", "IRT"):
         return True
-    # بعضی پاسخ‌ها فیلد پایه/نقل را خالی برمی‌گردانند؛ از نام مسیر استفاده می‌کنیم
     un = str(m.get("url_name") or "").lower()
     slug = c.lower()
     if un.startswith(f"{slug}-") or un.startswith(f"{slug}_"):
@@ -175,21 +239,26 @@ async def fetch_ramzinex(session: aiohttp.ClientSession, coin: str, timeout_s: i
                     break
             if match is None:
                 continue
-            buy, sell = _ramzinex_buy_sell(match)
-            if buy is None or sell is None:
+            api_buy, api_sell = _ramzinex_buy_sell(match)
+            if api_buy is None or api_sell is None:
                 continue
-            irr_mid = _mid_d(buy, sell)
-            return ExchangeQuote("ramzinex", label, irr_mid / Decimal(10))
+            # api_buy: نرخ خرید صرافی از کاربر (کاربر می‌فروشد)؛ api_sell: نرخ فروش صرافی به کاربر (کاربر می‌خرد)
+            quoted_at = _utc_now()
+            sell_toman = api_buy / Decimal(10)
+            buy_toman = api_sell / Decimal(10)
+            return _quote("ramzinex", label, buy_toman, sell_toman, quoted_at)
         except Exception as exc:  # noqa: BLE001
             last_err = exc
             logger.debug("Ramzinex attempt %s failed: %s", url, exc)
             continue
     if last_err:
         logger.debug("Ramzinex all API endpoints failed: %s", last_err)
-    return ExchangeQuote("ramzinex", label, None)
+    return _quote("ramzinex", label, None, None, None)
 
 
-async def _wallex_depth_mid(session: aiohttp.ClientSession, coin: str, timeout_s: int) -> Decimal | None:
+async def _wallex_depth_bid_ask(
+    session: aiohttp.ClientSession, coin: str, timeout_s: int
+) -> tuple[Decimal | None, Decimal | None]:
     sym = f"{coin.upper()}TMN"
     url = f"https://api.wallex.ir/v1/depth?symbol={sym}"
     wall_headers = {
@@ -204,10 +273,10 @@ async def _wallex_depth_mid(session: aiohttp.ClientSession, coin: str, timeout_s
             resp.raise_for_status()
             data: dict[str, Any] = await resp.json(content_type=None)
         if data.get("success") is False:
-            return None
+            return None, None
         result = data.get("result") or {}
         if not isinstance(result, dict):
-            return None
+            return None, None
         book: dict[str, Any] | None = result.get(sym) if isinstance(result.get(sym), dict) else None
         if book is None:
             for k, v in result.items():
@@ -215,11 +284,11 @@ async def _wallex_depth_mid(session: aiohttp.ClientSession, coin: str, timeout_s
                     book = v
                     break
         if book is None or not isinstance(book, dict):
-            return None
+            return None, None
         bids = book.get("bid") or []
         asks = book.get("ask") or []
         if not bids or not asks:
-            return None
+            return None, None
         b0, a0 = bids[0], asks[0]
         if isinstance(b0, dict):
             bid_p = _d(b0.get("price", 0))
@@ -229,10 +298,10 @@ async def _wallex_depth_mid(session: aiohttp.ClientSession, coin: str, timeout_s
             ask_p = _d(a0.get("price", 0))
         else:
             ask_p = _d(a0[0])
-        return _mid_d(bid_p, ask_p)
+        return bid_p, ask_p
     except Exception as exc:  # noqa: BLE001
         logger.debug("Wallex depth fallback: %s", exc)
-        return None
+        return None, None
 
 
 def _wallex_resolve_market(symbols_map: dict[str, Any], want: str) -> dict[str, Any] | None:
@@ -254,7 +323,9 @@ async def fetch_exir(session: aiohttp.ClientSession, coin: str, timeout_s: int) 
     label = EXCHANGE_LABELS_FA["exir"]
     symbol = f"{coin.lower()}-irt"
     url = f"https://api.exir.io/v2/ticker?symbol={symbol}"
-    price_toman: Decimal | None = None
+    buy_toman: Decimal | None = None
+    sell_toman: Decimal | None = None
+    quoted_at: datetime | None = None
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout_s)) as resp:
             if resp.status == 404:
@@ -265,16 +336,18 @@ async def fetch_exir(session: aiohttp.ClientSession, coin: str, timeout_s: int) 
                 last = t.get("last")
                 bid = t.get("bid")
                 ask = t.get("ask")
-                price_irr: Decimal | None = None
                 if bid is not None and ask is not None:
-                    price_irr = _mid_d(_d(bid), _d(ask))
+                    quoted_at = _utc_now()
+                    sell_toman = _d(bid) / Decimal(10)
+                    buy_toman = _d(ask) / Decimal(10)
                 elif last is not None:
-                    price_irr = _d(last)
-                if price_irr is not None:
-                    price_toman = price_irr / Decimal(10)
+                    quoted_at = _utc_now()
+                    mid = _d(last) / Decimal(10)
+                    buy_toman = mid
+                    sell_toman = mid
     except Exception as exc:  # noqa: BLE001
         logger.debug("Exir API failure: %s", exc)
-    return ExchangeQuote("exir", label, price_toman)
+    return _quote("exir", label, buy_toman, sell_toman, quoted_at)
 
 
 async def fetch_wallex(session: aiohttp.ClientSession, coin: str, timeout_s: int) -> ExchangeQuote:
@@ -286,13 +359,15 @@ async def fetch_wallex(session: aiohttp.ClientSession, coin: str, timeout_s: int
         "Origin": "https://wallex.ir",
         "Referer": "https://wallex.ir/",
     }
+    buy_toman: Decimal | None = None
+    sell_toman: Decimal | None = None
+    quoted_at: datetime | None = None
     try:
         async with session.get(
             url, headers=wall_headers, timeout=aiohttp.ClientTimeout(total=timeout_s)
         ) as resp:
             resp.raise_for_status()
             data: dict[str, Any] = await resp.json(content_type=None)
-        price: Decimal | None = None
         if data.get("success") is not False:
             res = data.get("result") or {}
             symbols_map = res.get("symbols")
@@ -304,21 +379,29 @@ async def fetch_wallex(session: aiohttp.ClientSession, coin: str, timeout_s: int
                     ask = stats.get("askPrice")
                     last = stats.get("lastPrice")
                     if bid is not None and ask is not None:
-                        price = _mid_d(_d(bid), _d(ask))
+                        quoted_at = _utc_now()
+                        sell_toman = _d(bid)
+                        buy_toman = _d(ask)
                     elif last is not None:
-                        price = _d(last)
-        if price is None:
-            price = await _wallex_depth_mid(session, coin, timeout_s)
-        if price is None:
-            return ExchangeQuote("wallex", label, None)
-        # نمادهای TMN از قبل به تومان هستند.
-        return ExchangeQuote("wallex", label, price)
+                        quoted_at = _utc_now()
+                        mid = _d(last)
+                        buy_toman = mid
+                        sell_toman = mid
+        if buy_toman is None or sell_toman is None:
+            bd, ak = await _wallex_depth_bid_ask(session, coin, timeout_s)
+            if bd is not None and ak is not None:
+                quoted_at = _utc_now()
+                sell_toman = bd
+                buy_toman = ak
+        if buy_toman is None and sell_toman is None:
+            return _quote("wallex", label, None, None, None)
+        return _quote("wallex", label, buy_toman, sell_toman, quoted_at)
     except Exception as exc:  # noqa: BLE001
         logger.debug("Wallex API failure: %s", exc)
-        depth_price = await _wallex_depth_mid(session, coin, timeout_s)
-        if depth_price is not None:
-            return ExchangeQuote("wallex", label, depth_price)
-        return ExchangeQuote("wallex", label, None)
+        bd, ak = await _wallex_depth_bid_ask(session, coin, timeout_s)
+        if bd is not None and ak is not None:
+            return _quote("wallex", label, ak, bd, _utc_now())
+        return _quote("wallex", label, None, None, None)
 
 
 async def fetch_tabdeal(session: aiohttp.ClientSession, coin: str, timeout_s: int) -> ExchangeQuote:
@@ -327,7 +410,9 @@ async def fetch_tabdeal(session: aiohttp.ClientSession, coin: str, timeout_s: in
     bases = [coin.upper()]
     if coin.upper() == "MATIC":
         bases = ["MATIC", "POL"]
-    price_toman: Decimal | None = None
+    buy_toman: Decimal | None = None
+    sell_toman: Decimal | None = None
+    quoted_at: datetime | None = None
     for base in bases:
         symbol = f"{base.upper()}IRT"
         url = f"https://api1.tabdeal.org/r/api/v1/depth?symbol={symbol}&limit=10"
@@ -337,13 +422,15 @@ async def fetch_tabdeal(session: aiohttp.ClientSession, coin: str, timeout_s: in
                     continue
                 resp.raise_for_status()
                 data: dict[str, Any] = await resp.json(content_type=None)
-            mid_raw = _depth_best_mid(data)
-            if mid_raw is not None:
-                price_toman = _irt_pair_mid_to_toman(mid_raw)
+            bid_raw, ask_raw = _depth_best_bid_ask(data)
+            if bid_raw is not None and ask_raw is not None:
+                quoted_at = _utc_now()
+                sell_toman = _irt_leg_to_toman(bid_raw)
+                buy_toman = _irt_leg_to_toman(ask_raw)
                 break
         except Exception as exc:  # noqa: BLE001
             logger.debug("Tabdeal API failure %s: %s", symbol, exc)
-    return ExchangeQuote("tabdeal", label, price_toman)
+    return _quote("tabdeal", label, buy_toman, sell_toman, quoted_at)
 
 
 async def fetch_abantether(session: aiohttp.ClientSession, coin: str, timeout_s: int) -> ExchangeQuote:
@@ -353,7 +440,9 @@ async def fetch_abantether(session: aiohttp.ClientSession, coin: str, timeout_s:
     keys_try = [f"{coin.upper()}IRT"]
     if coin.upper() == "MATIC":
         keys_try = ["MATICIRT", "POLIRT"]
-    price_toman: Decimal | None = None
+    buy_toman: Decimal | None = None
+    sell_toman: Decimal | None = None
+    quoted_at: datetime | None = None
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout_s)) as resp:
             resp.raise_for_status()
@@ -362,7 +451,7 @@ async def fetch_abantether(session: aiohttp.ClientSession, coin: str, timeout_s:
         if isinstance(markets, dict):
             markets = markets.get("markets")
         if not isinstance(markets, dict):
-            return ExchangeQuote("abantether", label, None)
+            return _quote("abantether", label, None, None, None)
         row: dict[str, Any] | None = None
         for key in keys_try:
             r = markets.get(key)
@@ -370,24 +459,27 @@ async def fetch_abantether(session: aiohttp.ClientSession, coin: str, timeout_s:
                 row = r
                 break
         if not isinstance(row, dict):
-            return ExchangeQuote("abantether", label, None)
+            return _quote("abantether", label, None, None, None)
         if row.get("active") is False:
-            return ExchangeQuote("abantether", label, None)
+            return _quote("abantether", label, None, None, None)
         buy_raw = row.get("buy_price")
         sell_raw = row.get("sell_price")
         if buy_raw is None or sell_raw is None:
-            return ExchangeQuote("abantether", label, None)
-        mid_raw = _mid_d(_d(buy_raw), _d(sell_raw))
-        price_toman = _irt_pair_mid_to_toman(mid_raw)
+            return _quote("abantether", label, None, None, None)
+        quoted_at = _utc_now()
+        buy_toman = _irt_leg_to_toman(_d(buy_raw))
+        sell_toman = _irt_leg_to_toman(_d(sell_raw))
     except Exception as exc:  # noqa: BLE001
         logger.debug("Aban Tether API failure: %s", exc)
-    return ExchangeQuote("abantether", label, price_toman)
+    return _quote("abantether", label, buy_toman, sell_toman, quoted_at)
 
 
 async def fetch_sarrafex(session: aiohttp.ClientSession, coin: str, timeout_s: int) -> ExchangeQuote:
     label = EXCHANGE_LABELS_FA["sarrafex"]
     url = "https://sarrafex.com/api/gateway/exchanger/query/market"
-    price_toman: Decimal | None = None
+    buy_toman: Decimal | None = None
+    sell_toman: Decimal | None = None
+    quoted_at: datetime | None = None
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout_s)) as resp:
             resp.raise_for_status()
@@ -406,10 +498,13 @@ async def fetch_sarrafex(session: aiohttp.ClientSession, coin: str, timeout_s: i
             if isinstance(chosen, dict):
                 rate = chosen.get("latestRate") or chosen.get("close")
                 if rate is not None:
-                    price_toman = _d(rate)
+                    quoted_at = _utc_now()
+                    p = _d(rate)
+                    buy_toman = p
+                    sell_toman = p
     except Exception as exc:  # noqa: BLE001
         logger.debug("Sarrafex API failure: %s", exc)
-    return ExchangeQuote("sarrafex", label, price_toman)
+    return _quote("sarrafex", label, buy_toman, sell_toman, quoted_at)
 
 
 async def gather_exchange_quotes(
