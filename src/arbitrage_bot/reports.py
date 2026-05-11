@@ -1,37 +1,23 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta, timezone, tzinfo
+from datetime import UTC, datetime
 from decimal import Decimal
 from html import escape
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from arbitrage_bot.exchange_clients import sort_quotes_for_display
 from arbitrage_bot.formatting import format_price_digits_rounded
-from arbitrage_bot.locale_fa import UNAVAILABLE
+from arbitrage_bot.locale_fa import FA_DIGITS, UNAVAILABLE
 from arbitrage_bot.models import ExchangeQuote, quote_mid_toman
+from arbitrage_bot.persian_calendar import format_today_shamsi_tehran
+from arbitrage_bot.tehran_time import tehran_tz
 
-_tehran_cached: tzinfo | None = None
 
-
-def _tehran_tz() -> tzinfo:
-    """Asia/Tehran اگر tzdata نصب باشد؛ روی ویندوز بدون tzdata از UTC+۳:۳۰ ثابت استفاده می‌شود."""
-
-    global _tehran_cached
-    if _tehran_cached is not None:
-        return _tehran_cached
-    try:
-        _tehran_cached = ZoneInfo("Asia/Tehran")
-    except ZoneInfoNotFoundError:
-        _tehran_cached = timezone(timedelta(hours=3, minutes=30))
-    return _tehran_cached
+def _to_fa_digits(s: str) -> str:
+    return s.translate(FA_DIGITS)
 
 
 def _sep() -> str:
-    return escape("──────────────────────────")
-
-
-def _today_tehran_ymd() -> str:
-    return datetime.now(_tehran_tz()).strftime("%Y-%m-%d")
+    return escape("━━━━━━━━━━━━━━━━━━━━━━")
 
 
 def _quote_time_tehran_label(quoted_at_utc: datetime | None) -> str:
@@ -40,50 +26,57 @@ def _quote_time_tehran_label(quoted_at_utc: datetime | None) -> str:
     dt = quoted_at_utc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
-    local = dt.astimezone(_tehran_tz())
-    return escape(local.strftime("%H:%M:%S"))
+    local = dt.astimezone(tehran_tz())
+    return escape(_to_fa_digits(local.strftime("%H:%M:%S")))
 
 
-def _line_price(label_fa: str, value: Decimal | None) -> str:
+def _line_price(icon: str, label_fa: str, value: Decimal | None) -> str:
     if value is None:
-        return f"   <b>{escape(label_fa)}</b>: <i>{escape(UNAVAILABLE)}</i>"
+        return (
+            f"   {icon} <b>{escape(label_fa)}</b>\n"
+            f"      <i>{escape(UNAVAILABLE)}</i>"
+        )
     num = format_price_digits_rounded(value)
-    return f"   <b>{escape(label_fa)}</b>: <code>{escape(num)}</code> تومان"
+    return (
+        f"   {icon} <b>{escape(label_fa)}</b>\n"
+        f"      <code>{escape(num)}</code> <i>تومان</i>"
+    )
 
 
 def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
     """
-    گزارش خوانا برای تلگرام (HTML): بخش‌بندی، قیمت در <code>، متن فارسی منظم.
+    گزارش تلگرام (HTML): بلوک‌های خوانا، تاریخ شمسی، زمان با ارقام فارسی.
     """
     ordered = sort_quotes_for_display(quotes)
     coin_e = escape(coin)
-    date_e = escape(_today_tehran_ymd())
+    date_line = escape(format_today_shamsi_tehran())
 
     parts: list[str] = [
         _sep(),
-        f"<b>📊  گزارش قیمت · {coin_e}</b>",
-        f"<i>تاریخ امروز (تهران): {date_e}</i>",
+        f"<b>📈 گزارش لحظه‌ای · {coin_e}</b>",
+        f"📅 <b>امروز</b> <i>(تقویم شمسی، وقت تهران)</i>\n<code>{date_line}</code>",
         _sep(),
         "",
-        f"<b>1) قیمت در صرافی‌ها</b>",
+        "<b>۱ · قیمت صرافی‌ها</b>",
+        "<i>خرید = مبلغی که می‌پردازید  ·  فروش = مبلغی که دریافت می‌کنید</i>",
         "",
     ]
 
     for q in ordered:
         name = escape(q.label_fa)
-        parts.append(f"•  <b>{name}</b>")
+        parts.append(f"🏦 <b>{name}</b>")
         if q.buy_toman is None and q.sell_toman is None:
             parts.append(f"   <i>{escape(UNAVAILABLE)}</i>")
         else:
             parts.append(
-                _line_price("خرید (مبلغ پرداختی شما به ازای یک واحد)", q.buy_toman)
+                _line_price("🛒", "خرید (هر واحد ارز)", q.buy_toman)
             )
             parts.append(
-                _line_price("فروش (مبلغ دریافتی شما به ازای یک واحد)", q.sell_toman)
+                _line_price("💵", "فروش (هر واحد ارز)", q.sell_toman)
             )
             parts.append(
-                "   <b>زمان دریافت قیمت از API (تهران)</b>: "
-                f"<code>{_quote_time_tehran_label(q.quoted_at_utc)}</code>"
+                "   🕐 <b>زمان گرفتن قیمت</b> <i>(تهران)</i>\n"
+                f"      <code>{_quote_time_tehran_label(q.quoted_at_utc)}</code>"
             )
         parts.append("")
 
@@ -97,58 +90,50 @@ def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
 
     parts.append("")
     parts.append(_sep())
-    parts.append("<b>2) بهترین صرافی از نظر قیمت</b>")
+    parts.append("<b>۲ · پیشنهاد بر اساس قیمت</b>")
     parts.append("")
     if best_buy is not None and best_buy.buy_toman is not None:
         p = format_price_digits_rounded(best_buy.buy_toman)
+        parts.append("✅ <b>ارزان‌ترین خرید برای شما</b>")
         parts.append(
-            "•  <b>مناسب‌تر برای خرید</b> (کمترین مبلغ پرداختی به ازای یک واحد):"
-        )
-        parts.append(
-            f"   <b>{escape(best_buy.label_fa)}</b> — "
-            f"<code>{escape(p)}</code> تومان"
+            f"   صرافی <b>{escape(best_buy.label_fa)}</b>\n"
+            f"   با حدود <code>{escape(p)}</code> <i>تومان به ازای هر واحد</i>"
         )
     else:
-        parts.append(
-            f"•  <b>مناسب‌تر برای خرید</b>: <i>{escape(UNAVAILABLE)}</i>"
-        )
+        parts.append(f"✅ <b>ارزان‌ترین خرید</b>\n   <i>{escape(UNAVAILABLE)}</i>")
     parts.append("")
     if best_sell is not None and best_sell.sell_toman is not None:
         p = format_price_digits_rounded(best_sell.sell_toman)
+        parts.append("✅ <b>بیشترین دریافت از فروش برای شما</b>")
         parts.append(
-            "•  <b>مناسب‌تر برای فروش</b> (بیشترین مبلغ دریافتی به ازای یک واحد):"
-        )
-        parts.append(
-            f"   <b>{escape(best_sell.label_fa)}</b> — "
-            f"<code>{escape(p)}</code> تومان"
+            f"   صرافی <b>{escape(best_sell.label_fa)}</b>\n"
+            f"   با حدود <code>{escape(p)}</code> <i>تومان به ازای هر واحد</i>"
         )
     else:
-        parts.append(
-            f"•  <b>مناسب‌تر برای فروش</b>: <i>{escape(UNAVAILABLE)}</i>"
-        )
+        parts.append(f"✅ <b>بیشترین دریافت از فروش</b>\n   <i>{escape(UNAVAILABLE)}</i>")
 
     valid = [q for q in ordered if quote_mid_toman(q) is not None]
     parts.append("")
     if len(valid) < 2:
         parts.append(
-            "⚠️  <i>برای مقایسهٔ معنادار بین صرافی‌ها، حداقل به <b>دو</b> منبع با قیمت معتبر نیاز دارید.</i>"
+            "⚠️ <i>برای مقایسهٔ دقیق‌تر، حداقل دو صرافی باید قیمت معتبر برگردانند.</i>"
         )
 
     parts.append("")
     parts.append(_sep())
-    parts.append("<b>3) یادآوری</b>")
+    parts.append("<b>۳ · یادآوری</b>")
     parts.append("")
     parts.append(
-        "<i>این اعداد فقط برای مقایسهٔ سریع هستند؛ کارمزد، اسپرد و "
-        "امکان جابه‌جایی بین صرافی‌ها را جداگانه در نظر بگیرید.</i>"
+        "• اعداد <b>تقریبی و مقایسه‌ای</b> هستند؛ کارمزد، اسپرد و نقدشوندگی را "
+        "حتماً در خود صرافی بررسی کنید."
     )
     parts.append(
-        "<i>اگر جایی «خطا» است، API آن صرافی موقتاً در دسترس نبوده یا دادهٔ کافی برنگشته است.</i>"
+        "• اگر جایی «در دسترس نیست» دیدید، یعنی آن لحظه API پاسخ نداده یا داده ناقص بوده است."
     )
     parts.append("")
     parts.append(
-        "💡  <i>برای راهنمای کامل نحوهٔ استفاده، محدودیت درخواست و فهرست ارزها، "
-        "دستور</i> <b>/help</b> <i>را بفرستید.</i>"
+        "💬 راهنمای کامل، محدودیت زمانی و فهرست ارزها:\n"
+        "   <b>/help</b>"
     )
 
     return "\n".join(parts)
