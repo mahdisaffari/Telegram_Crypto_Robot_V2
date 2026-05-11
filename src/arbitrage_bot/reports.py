@@ -1,16 +1,29 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from decimal import Decimal
 from html import escape
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from arbitrage_bot.exchange_clients import sort_quotes_for_display
 from arbitrage_bot.formatting import format_price_digits_rounded
 from arbitrage_bot.locale_fa import UNAVAILABLE
 from arbitrage_bot.models import ExchangeQuote, quote_mid_toman
 
-_TEHRAN = ZoneInfo("Asia/Tehran")
+_tehran_cached: tzinfo | None = None
+
+
+def _tehran_tz() -> tzinfo:
+    """Asia/Tehran اگر tzdata نصب باشد؛ روی ویندوز بدون tzdata از UTC+۳:۳۰ ثابت استفاده می‌شود."""
+
+    global _tehran_cached
+    if _tehran_cached is not None:
+        return _tehran_cached
+    try:
+        _tehran_cached = ZoneInfo("Asia/Tehran")
+    except ZoneInfoNotFoundError:
+        _tehran_cached = timezone(timedelta(hours=3, minutes=30))
+    return _tehran_cached
 
 
 def _sep() -> str:
@@ -18,7 +31,7 @@ def _sep() -> str:
 
 
 def _today_tehran_ymd() -> str:
-    return datetime.now(_TEHRAN).strftime("%Y-%m-%d")
+    return datetime.now(_tehran_tz()).strftime("%Y-%m-%d")
 
 
 def _quote_time_tehran_label(quoted_at_utc: datetime | None) -> str:
@@ -27,7 +40,7 @@ def _quote_time_tehran_label(quoted_at_utc: datetime | None) -> str:
     dt = quoted_at_utc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
-    local = dt.astimezone(_TEHRAN)
+    local = dt.astimezone(_tehran_tz())
     return escape(local.strftime("%H:%M:%S"))
 
 
