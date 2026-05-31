@@ -1,139 +1,89 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from html import escape
 
 from arbitrage_bot.exchange_clients import sort_quotes_for_display
-from arbitrage_bot.formatting import format_price_digits_rounded
-from arbitrage_bot.locale_fa import FA_DIGITS, UNAVAILABLE
-from arbitrage_bot.models import ExchangeQuote, quote_mid_toman
-from arbitrage_bot.persian_calendar import format_today_shamsi_tehran
-from arbitrage_bot.tehran_time import tehran_tz
-
-
-def _to_fa_digits(s: str) -> str:
-    return s.translate(FA_DIGITS)
+from arbitrage_bot.formatting import format_price_digits_exact
+from arbitrage_bot.locale_fa import UNAVAILABLE
+from arbitrage_bot.models import ExchangeQuote
 
 
 def _sep() -> str:
-    return escape("━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-
-def _quote_time_tehran_label(quoted_at_utc: datetime | None) -> str:
-    if quoted_at_utc is None:
-        return escape(UNAVAILABLE)
-    dt = quoted_at_utc
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    local = dt.astimezone(tehran_tz())
-    return escape(_to_fa_digits(local.strftime("%H:%M:%S")))
-
-
-def _line_price(icon: str, label_fa: str, value: Decimal | None) -> str:
-    if value is None:
-        return (
-            f"   {icon} <b>{escape(label_fa)}</b>\n"
-            f"      <i>{escape(UNAVAILABLE)}</i>"
-        )
-    num = format_price_digits_rounded(value)
-    return (
-        f"   {icon} <b>{escape(label_fa)}</b>\n"
-        f"      <code>{escape(num)}</code> <i>تومان</i>"
-    )
+    return escape("──────────────────────────")
 
 
 def build_price_report_html(coin: str, quotes: list[ExchangeQuote]) -> str:
     """
-    گزارش تلگرام (HTML): بلوک‌های خوانا، تاریخ شمسی، زمان با ارقام فارسی.
+    گزارش خوانا برای تلگرام (HTML): بخش‌بندی، قیمت در <code>، متن فارسی منظم.
     """
     ordered = sort_quotes_for_display(quotes)
     coin_e = escape(coin)
-    date_line = escape(format_today_shamsi_tehran())
 
     parts: list[str] = [
         _sep(),
-        f"<b>📈 گزارش لحظه‌ای · {coin_e}</b>",
-        f"📅 <b>امروز</b>\n<code>{date_line}</code>",
+        f"<b>📊  گزارش قیمت · {coin_e}</b>",
         _sep(),
+        ""
         "",
-        "<b>۱ · قیمت صرافی‌ها</b>",
-        "<i>خرید= مبلغی که می‌پردازید | فروش= مبلغی که دریافت می‌کنید</i>",
+        f"<b>1) قیمت در صرافی‌ها</b>",
         "",
     ]
 
     for q in ordered:
         name = escape(q.label_fa)
-        parts.append(f"🏦 <b>{name}</b>")
-        if q.buy_toman is None and q.sell_toman is None:
+        if q.price_toman is None:
+            parts.append(f"•  <b>{name}</b>")
             parts.append(f"   <i>{escape(UNAVAILABLE)}</i>")
         else:
-            parts.append(
-                _line_price("🛒", "خرید (هر واحد ارز)", q.buy_toman)
-            )
-            parts.append(
-                _line_price("💵", "فروش (هر واحد ارز)", q.sell_toman)
-            )
-            parts.append(
-                "   🕐 <b>زمان گرفتن قیمت</b>\n"
-                f"      <code>{_quote_time_tehran_label(q.quoted_at_utc)}</code>"
-            )
+            num = format_price_digits_exact(q.price_toman)
+            parts.append(f"•  <b>{name}</b>")
+            parts.append(f"   <code>{escape(num)}</code> تومان")
         parts.append("")
 
     while parts and parts[-1] == "":
         parts.pop()
 
-    buy_ok = [q for q in ordered if q.buy_toman is not None]
-    sell_ok = [q for q in ordered if q.sell_toman is not None]
-    best_buy = min(buy_ok, key=lambda q: q.buy_toman) if buy_ok else None
-    best_sell = max(sell_ok, key=lambda q: q.sell_toman) if sell_ok else None
+    valid = [q for q in ordered if q.price_toman is not None]
+    parts.append("")
+#    parts.append(_sep())
+#    parts.append(f"<b>2) آربیتراژ و بهترین صرافی</b>")
+#    parts.append("")
 
-    parts.append("")
-    parts.append(_sep())
-    parts.append("<b>۲ · پیشنهاد بر اساس قیمت</b>")
-    parts.append("")
-    if best_buy is not None and best_buy.buy_toman is not None:
-        p = format_price_digits_rounded(best_buy.buy_toman)
-        parts.append("✅ <b>ارزان‌ترین خرید برای شما</b>")
-        parts.append(
-            f"   صرافی <b>{escape(best_buy.label_fa)}</b>\n"
-            f"   با حدود <code>{escape(p)}</code> <i>تومان به ازای هر واحد</i>"
-        )
-    else:
-        parts.append(f"✅ <b>ارزان‌ترین خرید</b>\n   <i>{escape(UNAVAILABLE)}</i>")
-    parts.append("")
-    if best_sell is not None and best_sell.sell_toman is not None:
-        p = format_price_digits_rounded(best_sell.sell_toman)
-        parts.append("✅ <b>بیشترین دریافت از فروش برای شما</b>")
-        parts.append(
-            f"   صرافی <b>{escape(best_sell.label_fa)}</b>\n"
-            f"   با حدود <code>{escape(p)}</code> <i>تومان به ازای هر واحد</i>"
-        )
-    else:
-        parts.append(f"✅ <b>بیشترین دریافت از فروش</b>\n   <i>{escape(UNAVAILABLE)}</i>")
-
-    valid = [q for q in ordered if quote_mid_toman(q) is not None]
-    parts.append("")
     if len(valid) < 2:
         parts.append(
-            "⚠️ <i>برای مقایسهٔ دقیق‌تر، حداقل دو صرافی باید قیمت معتبر برگردانند.</i>"
+            "⚠️  <i>برای محاسبهٔ اختلاف قیمت، حداقل به <b>دو</b> صرافی با قیمت معتبر نیاز است.</i>"
         )
+    else:
+        prices = [q.price_toman for q in valid if q.price_toman is not None]
+        gap = max(prices) - min(prices)
+        buy_q = min(valid, key=lambda x: x.price_toman if x.price_toman is not None else Decimal("Infinity"))
+        sell_q = max(valid, key=lambda x: x.price_toman if x.price_toman is not None else Decimal("-Infinity"))
+
+#        parts.append("شکاف قیمت (گران‌ترین منهای ارزان‌ترین):")
+#        parts.append(f"   <code>{escape(format_price_digits_exact(gap))}</code> تومان")
+#        parts.append("")
+#        parts.append("ارزان‌ترین (مناسب‌تر برای <b>خرید</b>) :")
+#        parts.append(
+#            f"   {escape(buy_q.label_fa)}  ←  <code>{escape(format_price_digits_exact(buy_q.price_toman))}</code>"
+#        )
+#        parts.append("")
+#        parts.append("گران‌ترین (مناسب‌تر برای <b>فروش</b>) :")
+#        parts.append(
+#            f"   {escape(sell_q.label_fa)}  ←  <code>{escape(format_price_digits_exact(sell_q.price_toman))}</code>"
+#        )
 
     parts.append("")
     parts.append(_sep())
-    parts.append("<b>۳ · یادآوری</b>")
+    parts.append(f"<b>2) * یادآوری *</b>")
     parts.append("")
     parts.append(
-        "• اعداد <b>تقریبی و مقایسه‌ای</b> هستند؛ کارمزد، اسپرد و نقدشوندگی را "
-        "حتماً در خود صرافی بررسی کنید."
+        "<i>این اعداد فقط برای مقایسهٔ سریع هستند؛ کارمزد، اسپرد و "
+        "امکان جابه‌جایی بین صرافی‌ها را جداگانه در نظر بگیرید.</i>"
     )
+
     parts.append(
-        "• اگر جایی «در دسترس نیست» دیدید، یعنی آن لحظه API پاسخ نداده یا داده ناقص بوده است."
-    )
-    parts.append("")
-    parts.append(
-        "💬 راهنمای کامل، محدودیت زمانی و فهرست ارزها:\n"
-        "   <b>/help</b>"
+        "<i>اگر جایی «خطا» است، API یا سایت آن صرافی موقتاً در دسترس نبوده است.</i>"
     )
 
     return "\n".join(parts)
