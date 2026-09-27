@@ -134,7 +134,6 @@ Soheil_crypto_bot/
 ---
 ## Screenshots
 
-## Screenshots
 
 ![Bot Screenshot 1](./screenshots/Screenshot_20260830_203454_Telegram.jpg)
 
