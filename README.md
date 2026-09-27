@@ -5,15 +5,7 @@ An asynchronous Telegram bot (Python) that fetches spot prices for whitelisted c
 > **Note:** This project was created with the help of **AI-assisted development tools** (e.g. coding assistants). Review security-sensitive parts (tokens, deployment, and exchange integrations) before production use.
 
 ---
-## Screenshots
 
-![Bot Screenshot 1](./screenshots/Screenshot_20260830_203437_Telegram.jpg)
-
-![Bot Screenshot 2](./screenshots/Screenshot_20260830_203448_Telegram.jpg)
-
-![Bot Screenshot 3](./screenshots/Screenshot_20260830_203454_Telegram.jpg)
-
----
 ## Features
 
 - **Coins:** `USDT`, `USDC`, `DAI`, `BTC`, `ETH`, `TRX`, `XRP`, `XLM`, `LTC`, `SOL`, `MATIC`, plus `USDC-TRC20` / `USDC-BEP20` style aliases (all resolve to the same `USDC` IRT book where the exchange has a single market)
@@ -139,4 +131,8 @@ Soheil_crypto_bot/
 - Rotate tokens if they are exposed.
 - Prefer a non-root user in systemd and minimal container privileges.
 
+---
+## Screenshots
+
+![Bot Screenshot 1](./screenshots/Screenshot_20260830_203437_Telegram.jpg)
 
